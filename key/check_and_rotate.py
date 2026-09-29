@@ -27,6 +27,9 @@ from create_account_direct import (
 )
 
 
+KEYS_POOL_FILE = os.path.join(WORKSPACE_DIR, "keys_pool.json")
+
+
 def load_accounts():
     """Đọc danh sách tài khoản từ accounts.txt"""
     if not os.path.exists(ACCOUNTS_FILE):
@@ -35,16 +38,222 @@ def load_accounts():
     with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if not line:
+            if not line or line.startswith("#"):
                 continue
             acc = {}
             for part in line.split("|"):
                 if ":" in part:
                     k, v = part.split(":", 1)
                     acc[k.strip().lower()] = v.strip()
-            if "email" in acc:
+            if "email" in acc or "api_key" in acc:
                 accounts.append(acc)
     return accounts
+
+
+def load_pool():
+    """
+    Tải kho lưu trữ toàn bộ Key từ keys_pool.json.
+    Tự động đồng bộ với accounts.txt và key_acc1.txt.
+    KHÔNG BAO GIỜ XÓA BẤT KỲ KEY NÀO.
+    """
+    pool = []
+    if os.path.exists(KEYS_POOL_FILE):
+        try:
+            with open(KEYS_POOL_FILE, "r", encoding="utf-8") as f:
+                pool = json.load(f)
+        except Exception:
+            pool = []
+
+    existing_keys = {item.get("api_key") for item in pool if item.get("api_key")}
+
+    # Tự động nạp từ accounts.txt nếu có
+    for acc in load_accounts():
+        k = acc.get("api_key")
+        if k and k.startswith("thk_") and k not in existing_keys:
+            pool.append({
+                "api_key": k,
+                "email": acc.get("email", ""),
+                "password": acc.get("password", ""),
+                "used_pct": 0,
+                "remaining_pct": 100,
+                "resets_at": "",
+                "status": acc.get("status", "Chờ kiểm tra"),
+                "last_checked": ""
+            })
+            existing_keys.add(k)
+
+    # Tự động nạp từ key_acc1.txt nếu có
+    kfile = os.path.join(WORKSPACE_DIR, "key_acc1.txt")
+    if os.path.exists(kfile):
+        try:
+            with open(kfile, "r", encoding="utf-8") as f:
+                for line in f:
+                    k = line.strip()
+                    if k.startswith("thk_") and k not in existing_keys:
+                        pool.append({
+                            "api_key": k,
+                            "email": "",
+                            "password": "",
+                            "used_pct": 0,
+                            "remaining_pct": 100,
+                            "resets_at": "",
+                            "status": "Active",
+                            "last_checked": ""
+                        })
+                        existing_keys.add(k)
+        except Exception:
+            pass
+
+    return pool
+
+
+def save_pool(pool):
+    """
+    Lưu lại toàn bộ kho key vào keys_pool.json và đồng bộ sang accounts.txt.
+    Giữ lại vĩnh viễn toàn bộ key để chờ chu kỳ reset 7 ngày.
+    """
+    try:
+        with open(KEYS_POOL_FILE, "w", encoding="utf-8") as f:
+            json.dump(pool, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"⚠️ Lỗi lưu keys_pool.json: {e}")
+
+    try:
+        lines = [
+            "# Danh sach toan bo tai khoan va Key Token Harbor (Luu tru vinh vien - Tu dong tai su dung sau 7 ngay):",
+            "# Dinh dang: Email: ... | Password: ... | API_Key: ... | Quota_Rem: ...% | Resets: ... | Status: ..."
+        ]
+        for item in pool:
+            em = item.get("email", "N/A")
+            pw = item.get("password", "N/A")
+            k = item.get("api_key", "")
+            rem = item.get("remaining_pct", 0)
+            res = item.get("resets_at", "N/A")
+            st = item.get("status", "Active")
+            lines.append(f"Email: {em} | Password: {pw} | API_Key: {k} | Quota_Rem: {rem}% | Resets: {res} | Status: {st}")
+
+        with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except Exception:
+        pass
+
+
+def update_key_in_pool(api_key: str, quota_stat: dict, email: str = None, password: str = None):
+    """Cập nhật thông tin Quota và trạng thái reset của Key trong kho"""
+    pool = load_pool()
+    found = False
+    now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    for item in pool:
+        if item.get("api_key") == api_key:
+            found = True
+            if email and not item.get("email"):
+                item["email"] = email
+            if password and not item.get("password"):
+                item["password"] = password
+            if quota_stat.get("ok"):
+                item["used_pct"] = quota_stat.get("used_pct", 0)
+                item["remaining_pct"] = quota_stat.get("remaining_pct", 0)
+                item["resets_at"] = quota_stat.get("resets_at", item.get("resets_at", ""))
+                rem = item["remaining_pct"]
+                item["status"] = "Active (Đang dùng)" if rem >= 30 else "Cooling Down (Chờ reset 7 ngày)"
+            else:
+                err = quota_stat.get("error", "")
+                if "429" in err or quota_stat.get("exhausted"):
+                    item["remaining_pct"] = 0
+                    item["status"] = "Cooling Down (Chờ reset 7 ngày)"
+                elif "403" in err:
+                    item["status"] = "Chưa xác minh Email"
+                else:
+                    item["status"] = f"Lỗi: {err[:30]}"
+            item["last_checked"] = now_str
+            break
+
+    if not found and api_key:
+        rem = quota_stat.get("remaining_pct", 0)
+        status = "Active" if rem >= 30 else "Cooling Down (Chờ reset 7 ngày)"
+        pool.append({
+            "api_key": api_key,
+            "email": email or "",
+            "password": password or "",
+            "used_pct": quota_stat.get("used_pct", 0),
+            "remaining_pct": rem,
+            "resets_at": quota_stat.get("resets_at", ""),
+            "status": status,
+            "last_checked": now_str
+        })
+
+    save_pool(pool)
+
+
+def print_pool_summary():
+    """Hiển thị bảng tổng kết toàn bộ kho Key và chu kỳ reset 7 ngày"""
+    pool = load_pool()
+    print("\n" + "=" * 75)
+    print("📦 [KHO LƯU TRỮ KEY & CHU KỲ RESET 7 NGÀY (KEY POOL)]")
+    print("=" * 75)
+    if not pool:
+        print("   (Kho hiện chưa có key nào được lưu)")
+    else:
+        for idx, item in enumerate(pool, 1):
+            k = item.get("api_key", "")
+            em = item.get("email", "Ẩn danh")
+            rem = item.get("remaining_pct", 0)
+            res = item.get("resets_at", "N/A")
+            st = item.get("status", "N/A")
+            if "T" in res:
+                res_clean = res.split("T")[0] + " " + res.split("T")[1][:5]
+            else:
+                res_clean = res
+            print(f"#{idx:02d} | Key: {k[:16]}... | Quota: {rem:3d}% | Reset: {res_clean:16s} | {st} ({em})")
+    print("=" * 75)
+    print(f"💡 Tổng cộng: {len(pool)} Key trong kho. Tất cả Key đều được giữ lại vĩnh viễn!")
+    print("   Hệ thống sẽ tự động xoay vòng tái sử dụng Key cũ ngay khi reset xong!")
+    print("=" * 75 + "\n")
+
+
+def find_reusable_key_from_pool(threshold=30.0, current_key=""):
+    """
+    Quét kho Key: tìm xem có key nào ĐÃ RESET HẠN MỨC (sau 7 ngày) hoặc còn >= threshold% quota.
+    Trả về (key, info_dict) nếu tìm thấy, hoặc (None, None).
+    """
+    pool = load_pool()
+    if not pool:
+        return None, None
+
+    print("\n📦 [KHO KEY] Đang kiểm tra lại các Key đã lưu trữ để tìm key đã hồi sinh Quota...")
+    candidates = []
+    for item in pool:
+        k = item.get("api_key")
+        if not k or k == current_key:
+            continue
+        if "Chưa xác minh" in item.get("status", ""):
+            continue
+        candidates.append(item)
+
+    if not candidates:
+        print("   ℹ️ Chưa có key phụ nào khác trong kho lưu trữ.")
+        return None, None
+
+    print(f"   🔍 Tìm thấy {len(candidates)} key dự phòng trong kho. Đang ping kiểm tra quota...")
+    for item in candidates:
+        k = item.get("api_key")
+        em = item.get("email", "Ẩn danh")
+        print(f"   ⚡ Ping: {k[:18]}... ({em})")
+        stat = check_quota_fast(k)
+        update_key_in_pool(k, stat)
+
+        if stat.get("ok"):
+            rem = stat.get("remaining_pct", 0)
+            print(f"      -> Quota hiện tại: {rem}% (Chu kỳ reset kế: {stat.get('resets_at', 'N/A')})")
+            if rem >= threshold:
+                print(f"   🎉 [TÁI SINH THÀNH CÔNG] Key này đã reset hạn mức và sẵn sàng sử dụng ({rem}% >= {threshold}%)!")
+                return k, item
+        else:
+            print(f"      -> Trạng thái: {stat.get('error')}")
+
+    print("   ❌ Các Key cũ trong kho hiện vẫn đang trong chu kỳ chờ reset 7 ngày (< 30%).")
+    return None, None
 
 
 def sync_key_everywhere(api_key: str):
@@ -440,19 +649,21 @@ def check_and_rotate_once(threshold=30.0, force=False):
                 current_email = acc.get("email", "")
                 break
 
-    print(f"\n🔑 API Key: {current_key[:18] if current_key else '(Chưa có)'}... (Nguồn: {source})")
+    print(f"\n🔑 API Key hiện tại: {current_key[:18] if current_key else '(Chưa có)'}... (Nguồn: {source})")
 
-    need_create = False
+    need_rotate = False
 
     if force:
-        print("\n⚡ [LỆNH ÉP BUỘC] Tham số --force được truyền vào -> Bỏ qua kiểm tra, tạo acc ngay!")
-        need_create = True
+        print("\n⚡ [LỆNH ÉP BUỘC] Tham số --force được truyền vào -> Bỏ qua kiểm tra, xoay vòng/tạo key ngay!")
+        need_rotate = True
     elif not current_key:
-        print("\n⚠️ Chưa có API Key nào được cấu hình -> Cần tạo tài khoản mới ngay!")
-        need_create = True
+        print("\n⚠️ Chưa có API Key nào được cấu hình -> Cần tìm key trong kho hoặc tạo mới!")
+        need_rotate = True
     else:
         print("🔍 Đang gửi request kiểm tra tình trạng Quota qua Gateway...")
         stat = check_quota_fast(current_key)
+        update_key_in_pool(current_key, stat, email=current_email)
+
         if stat.get("ok"):
             rem = stat.get("remaining_pct", 0)
             used = stat.get("used_pct", 0)
@@ -461,7 +672,6 @@ def check_and_rotate_once(threshold=30.0, force=False):
             print(f"🔋 Quota còn lại : {rem}%")
             print(f"⏳ Reset lúc     : {resets}")
 
-            # Luôn đồng bộ key hợp lệ vào tất cả cấu hình của IDE
             sync_key_everywhere(current_key)
 
             if rem >= threshold:
@@ -470,34 +680,57 @@ def check_and_rotate_once(threshold=30.0, force=False):
                 return True
             else:
                 print(f"\n⚠️ CẢNH BÁO: Quota còn lại ({rem}%) ĐÃ DƯỚI NGƯỠNG {threshold}%!")
-                need_create = True
+                need_rotate = True
         else:
             print(f"\n❌ Key hiện tại gặp vấn đề: {stat.get('error')}")
-            print(f"👉 Quota khả dụng: 0% (< {threshold}%) -> Cần tạo tài khoản mới dự phòng!")
-            need_create = True
+            update_key_in_pool(current_key, stat, email=current_email)
+            need_rotate = True
 
-    if need_create:
+    if need_rotate:
+        # BƯỚC 1: QUÉT KHO KEY XEM CÓ KEY CŨ NÀO ĐÃ RESET HẠN MỨC (SAU 7 NGÀY) CHƯA
+        reusable_key, info = find_reusable_key_from_pool(threshold=threshold, current_key=current_key)
+        if reusable_key:
+            print(f"\n♻️ [HỒI SINH KEY THÀNH CÔNG] Đã tái sử dụng Key trong kho: {reusable_key[:18]}... ({info.get('email', '')})")
+            print(f"   🔋 Quota hiện tại : {info.get('remaining_pct', 100)}%")
+            print(f"   ⏳ Chu kỳ reset kế: {info.get('resets_at', 'N/A')}")
+            sync_key_everywhere(reusable_key)
+            return True
+
+        # BƯỚC 2: TẤT CẢ KEY TRONG KHO ĐỀU CHƯA RESET -> TẠO MỚI VÀ LƯU THÊM VÀO KHO
+        print("\n🚀 [TẠO MỚI BỔ SUNG] Toàn bộ Key trong kho đều đang chờ chu kỳ reset 7 ngày.")
+        print("   Bắt đầu tạo thêm 1 tài khoản mới và LƯU TRỮ VĨNH VIỄN vào kho...")
         ok, timings, new_key = create_and_verify_account_full(provider_type="emailtick", headless=True)
         if ok and new_key:
             print("\n🔍 Đang kiểm tra xác thực Key mới vừa tạo...")
             test_stat = check_quota_fast(new_key)
             if test_stat.get("ok"):
                 print(f"🎉 KEY MỚI HOẠT ĐỘNG HOÀN HẢO! Quota còn lại: {test_stat.get('remaining_pct')}%")
+                update_key_in_pool(new_key, test_stat)
                 sync_key_everywhere(new_key)
                 return True
             else:
                 print(f"ℹ️ Key mới đã tạo, kết quả kiểm tra: {test_stat.get('error')}")
+                update_key_in_pool(new_key, test_stat)
                 return False
+        else:
+            print("❌ Không thể tạo tài khoản mới.")
+            return False
+
     return False
 
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Kiểm tra Quota và Tự động tạo acc nếu dưới ngưỡng")
+    parser = argparse.ArgumentParser(description="Kiểm tra Quota, Tự động xoay vòng Key cũ đã reset hoặc tạo acc mới")
     parser.add_argument("--threshold", type=float, default=30.0, help="Ngưỡng %% quota còn lại (mặc định: 30%%)")
-    parser.add_argument("--force", action="store_true", help="Bắt buộc tạo tài khoản mới bất kể quota")
+    parser.add_argument("--force", action="store_true", help="Bắt buộc xoay vòng hoặc tạo mới bất kể quota")
     parser.add_argument("--watch", type=int, default=0, help="Chạy chế độ giám sát ngầm liên tục (số phút giữa mỗi lần check, 0 = chạy 1 lần)")
+    parser.add_argument("--pool", action="store_true", help="Xem danh sách toàn bộ Key trong kho lưu trữ và thời gian reset 7 ngày")
     args = parser.parse_args()
+
+    if args.pool:
+        print_pool_summary()
+        return
 
     threshold = args.threshold
 
@@ -506,6 +739,7 @@ def main():
         print(f"🛡️ [CHẾ ĐỘ GIÁM SÁT NGẦM WATCHDOG ĐANG BẬT]")
         print(f"   ⏱️ Chu kỳ kiểm tra  : Mỗi {args.watch} phút")
         print(f"   ⚠️ Ngưỡng kích hoạt : Quota còn dưới {threshold}%")
+        print("   ♻️ Cơ chế           : Ưu tiên hồi sinh Key cũ đã reset 7 ngày trước khi tạo mới")
         print("=" * 65)
         while True:
             try:
@@ -515,10 +749,12 @@ def main():
             time.sleep(args.watch * 60)
     else:
         print("=" * 65)
-        print("🔍 [KIỂM TRA HẠN MỨC QUOTA TOKEN HARBOR]")
+        print("🔍 [KIỂM TRA HẠN MỨC QUOTA TOKEN HARBOR & KHO KEY]")
         print(f"   ⚠️ Ngưỡng kích hoạt tạo mới: Quota còn dưới {threshold}%")
+        print("   ♻️ Cơ chế: Tự động tái sử dụng Key cũ đã reset 7 ngày")
         print("=" * 65)
         check_and_rotate_once(threshold=threshold, force=args.force)
+        print_pool_summary()
 
 
 if __name__ == "__main__":

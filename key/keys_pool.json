@@ -1,0 +1,32 @@
+[
+  {
+    "api_key": "thk_live__FHO3VA2nNUFm8gF9SoCfUOa-_dNyO6yfTWy_zpj0dkmZdmztjhkTrq5DNx5UvXu",
+    "email": "man.l.i.ob.i.z.ne.ss+9quny94qgsd3@googlemail.com",
+    "password": "14bQ7jGc#D%1n9u#",
+    "used_pct": 0,
+    "remaining_pct": 100,
+    "resets_at": "",
+    "status": "Cooling Down (Chờ reset 7 ngày)",
+    "last_checked": ""
+  },
+  {
+    "api_key": "thk_live_Nr4LmBAQ4Mbtc_AuzTT5SsDiBDW_x9HKXvCvXT7x6vsBAosbKJf-nfLvvi1defBu",
+    "email": "ki.li.a.no.ko.nduru+br46ijhlvx33@googlemail.com",
+    "password": "VK9B#0vV$Y!1iyPb",
+    "used_pct": 0,
+    "remaining_pct": 100,
+    "resets_at": "",
+    "status": "Cooling Down (Chờ reset 7 ngày)",
+    "last_checked": ""
+  },
+  {
+    "api_key": "thk_live_AN4-xbPQN2Ej4CEbaq2wSO1DJP6y6FhDpZfIp2d1Dlib3F1pyz6buww-hjili5ZQ",
+    "email": "carrington736@smarta4.com",
+    "password": "8lmYrS&$MeHzHsd3",
+    "used_pct": 47,
+    "remaining_pct": 53,
+    "resets_at": "2026-10-05T19:10:58.265196+00:00",
+    "status": "Active (Đang dùng)",
+    "last_checked": "2026-09-29 17:04:33"
+  }
+]

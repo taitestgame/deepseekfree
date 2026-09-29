@@ -1,2 +1,5 @@
-# Danh sach tai khoan Token Harbor duoc tu dong luu tai day theo dinh dang:
-# Email: ... | Password: ... | API_Key: ... | Status: ...
+# Danh sach toan bo tai khoan va Key Token Harbor (Luu tru vinh vien - Tu dong tai su dung sau 7 ngay):
+# Dinh dang: Email: ... | Password: ... | API_Key: ... | Quota_Rem: ...% | Resets: ... | Status: ...
+Email: man.l.i.ob.i.z.ne.ss+9quny94qgsd3@googlemail.com | Password: 14bQ7jGc#D%1n9u# | API_Key: thk_live__FHO3VA2nNUFm8gF9SoCfUOa-_dNyO6yfTWy_zpj0dkmZdmztjhkTrq5DNx5UvXu | Quota_Rem: 100% | Resets:  | Status: Cooling Down (Chờ reset 7 ngày)
+Email: ki.li.a.no.ko.nduru+br46ijhlvx33@googlemail.com | Password: VK9B#0vV$Y!1iyPb | API_Key: thk_live_Nr4LmBAQ4Mbtc_AuzTT5SsDiBDW_x9HKXvCvXT7x6vsBAosbKJf-nfLvvi1defBu | Quota_Rem: 100% | Resets:  | Status: Cooling Down (Chờ reset 7 ngày)
+Email: carrington736@smarta4.com | Password: 8lmYrS&$MeHzHsd3 | API_Key: thk_live_AN4-xbPQN2Ej4CEbaq2wSO1DJP6y6FhDpZfIp2d1Dlib3F1pyz6buww-hjili5ZQ | Quota_Rem: 53% | Resets: 2026-10-05T19:10:58.265196+00:00 | Status: Active (Đang dùng)
