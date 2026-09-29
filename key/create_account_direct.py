@@ -9,6 +9,7 @@ import argparse
 import requests
 from cloakbrowser import launch_persistent_context
 from temp_mail import InstantMailPopular
+from proxy_service import ProxyService
 
 try:
     from curl_cffi import requests as cffi_requests
@@ -445,15 +446,16 @@ def create_single_account(provider_type: str = "emailtick",
     print("=" * 65)
 
     # 1. Khởi tạo Proxy nếu có
-    active_proxy = proxy
+    active_proxy = None
     network_mode = "Direct IP (IP máy trực tiếp)"
-    if use_warp:
-        warp_proxy = start_or_rotate_warp()
-        if warp_proxy:
-            active_proxy = warp_proxy
-            network_mode = "Cloudflare WARP (SOCKS5 127.0.0.1:2080)"
-    elif active_proxy:
-        network_mode = f"Custom Proxy ({active_proxy})"
+    if proxy:
+        active_proxy = {"server": proxy} if isinstance(proxy, str) else proxy
+        network_mode = f"Custom Proxy ({proxy})"
+    elif use_warp or ProxyService.is_warp_available():
+        warp_proxy = ProxyService.rotate_proxy()
+        if warp_proxy and warp_proxy != "direct":
+            active_proxy = {"server": warp_proxy}
+            network_mode = f"Cloudflare WARP Free ({warp_proxy})"
 
     # 2. Khởi tạo mail provider
     if provider_type == "emailtick":
@@ -573,6 +575,7 @@ def create_single_account(provider_type: str = "emailtick",
             context.close()
         except Exception:
             pass
+        ProxyService.stop()
 
 
 # =====================================================================

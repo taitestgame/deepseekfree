@@ -18,6 +18,7 @@ ACCOUNTS_FILE = os.path.join(WORKSPACE_DIR, "accounts.txt")
 sys.path.insert(0, WORKSPACE_DIR)
 
 from cloakbrowser import launch_persistent_context
+from proxy_service import ProxyService
 from create_account_direct import (
     EmailTickProvider,
     InstantMailPopular,
@@ -415,7 +416,15 @@ def create_and_verify_account_full(provider_type="emailtick", headless=True):
     print("\n[Bước 2/5] Khởi chạy trình duyệt CloakBrowser...")
     t0 = time.perf_counter()
     user_data_dir = os.path.join(tempfile.gettempdir(), f"th_auto_{int(time.time())}_{random.randint(100, 999)}")
-    ctx = launch_persistent_context(user_data_dir=user_data_dir, headless=headless, humanize=False)
+
+    proxy_config = None
+    if ProxyService.is_warp_available():
+        p_url = ProxyService.rotate_proxy()
+        if p_url and p_url != "direct":
+            proxy_config = {"server": p_url}
+            print(f"   🛡️ Đang áp dụng Proxy WARP Free: {p_url}")
+
+    ctx = launch_persistent_context(user_data_dir=user_data_dir, headless=headless, humanize=False, proxy=proxy_config)
     t_browser = time.perf_counter() - t0
     timings["2_browser"] = t_browser
     print(f"   ✅ Browser đã sẵn sàng (Mất: {t_browser:.2f}s)")
@@ -573,6 +582,7 @@ def create_and_verify_account_full(provider_type="emailtick", headless=True):
             ctx.close()
         except Exception:
             pass
+        ProxyService.stop()
 
 
 def find_existing_key():
