@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Local runtime & credentials
+.credentials.yaml
+credentials.json
+*.keyid
+*.pid
+*.port
+
+# Logs & temp
+*.log
+*.err
+*.tmp
+temp/
+.vscode/
+
+# Media / junk
+*.png
+*.jpg
+*.jpeg

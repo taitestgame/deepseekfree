@@ -1,0 +1,15 @@
+{
+  "name": "halyard-home",
+  "private": true,
+  "allowScripts": {
+    "@tokenharbor/halyard": true,
+    "@deepseek-ai/dsh-subprocess-local": true,
+    "koffi": true,
+    "node-pty": true,
+    "protobufjs": true,
+    "@google/genai": true
+  },
+  "dependencies": {
+    "@tokenharbor/halyard": "^0.2.54"
+  }
+}
