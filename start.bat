@@ -8,21 +8,18 @@ echo   🚀 DANG KHOI DONG DEEPSEEKFREE (IDE + KEY WATCHDOG)
 echo =================================================================
 echo.
 
-:: 1. Kiem tra Quota va cap nhat key moi neu can
-echo [*] Buoc 1/2: Kiem tra han muc Quota Token Harbor...
+:: 1. Kiem tra Quota va cap nhat key moi neu can truoc khi mo IDE
+echo [*] Buoc 1/3: Kiem tra han muc Quota Token Harbor...
 python "key\check_and_rotate.py"
 
-:: Nap Key vao bien moi truong cua phien khoi dong
-if exist "key\key_acc1.txt" (
-    for /f "usebackq eol=# delims=" %%k in ("key\key_acc1.txt") do (
-        set "HALYARD_API_KEY=%%k"
-        set "TOKENHARBOR_API_KEY=%%k"
-    )
-)
-
-:: 2. Khoi dong IDE Halyard
+:: 2. Bat Watchdog chay ngam (tu dong giam sat moi 3 phut, rot duoi 30% la tu tao acc moi)
 echo.
-echo [*] Buoc 2/2: Khoi dong may chu IDE Halyard...
+echo [*] Buoc 2/3: Khoi dong Key Watchdog chay ngam (kiem tra moi 3 phut)...
+start "" /B python "key\check_and_rotate.py" --watch 3
+
+:: 3. Khoi dong IDE Halyard
+echo.
+echo [*] Buoc 3/3: Khoi dong may chu IDE Halyard...
 set "HALYARD_DIR=%USERPROFILE%\.halyard"
 set "HALYARD_BIN=%HALYARD_DIR%\node_modules\@tokenharbor\halyard\bin\halyard.mjs"
 
@@ -39,8 +36,9 @@ start "" cmd /c "timeout /t 3 >nul & start http://127.0.0.1:3080"
 
 echo.
 echo =================================================================
-echo   ✅ MAY CHU IDE HALYARD DANG HOAT DONG!
+echo   ✅ MAY CHU IDE VA KEY WATCHDOG DANG HOAT DONG!
 echo   💡 Cua so nay duy tri may chu IDE tren cong 3080.
+echo   🛡️ Watchdog se tu dong tao acc moi khi quota rot duoi 30%%.
 echo   (Nhan Ctrl+C de dung may chu hoac dong cua so nay)
 echo =================================================================
 echo.

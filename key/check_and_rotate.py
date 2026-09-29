@@ -430,19 +430,7 @@ def find_existing_key():
     return "", "Chưa có key"
 
 
-def main():
-    import argparse
-    parser = argparse.ArgumentParser(description="Kiểm tra Quota và Tự động tạo acc nếu dưới ngưỡng")
-    parser.add_argument("--threshold", type=float, default=30.0, help="Ngưỡng %% quota còn lại (mặc định: 30%%)")
-    parser.add_argument("--force", action="store_true", help="Bắt buộc tạo tài khoản mới bất kể quota")
-    args = parser.parse_args()
-
-    threshold = args.threshold
-    print("=" * 65)
-    print("🔍 [KIỂM TRA HẠN MỨC QUOTA TOKEN HARBOR]")
-    print(f"   ⚠️ Ngưỡng kích hoạt tạo mới: Quota còn dưới {threshold}%")
-    print("=" * 65)
-
+def check_and_rotate_once(threshold=30.0, force=False):
     current_key, source = find_existing_key()
     accounts = load_accounts()
     current_email = ""
@@ -452,18 +440,18 @@ def main():
                 current_email = acc.get("email", "")
                 break
 
-    print(f"🔑 API Key tìm thấy: {current_key[:18] if current_key else '(Chưa có)'}... (Nguồn: {source})")
+    print(f"\n🔑 API Key: {current_key[:18] if current_key else '(Chưa có)'}... (Nguồn: {source})")
 
     need_create = False
 
-    if args.force:
+    if force:
         print("\n⚡ [LỆNH ÉP BUỘC] Tham số --force được truyền vào -> Bỏ qua kiểm tra, tạo acc ngay!")
         need_create = True
     elif not current_key:
         print("\n⚠️ Chưa có API Key nào được cấu hình -> Cần tạo tài khoản mới ngay!")
         need_create = True
     else:
-        print("\n🔍 Đang gửi request kiểm tra tình trạng Quota qua Gateway...")
+        print("🔍 Đang gửi request kiểm tra tình trạng Quota qua Gateway...")
         stat = check_quota_fast(current_key)
         if stat.get("ok"):
             rem = stat.get("remaining_pct", 0)
@@ -477,11 +465,9 @@ def main():
             sync_key_everywhere(current_key)
 
             if rem >= threshold:
-                print("\n" + "=" * 65)
-                print(f"✅ QUOTA CÒN NHIỀU ({rem}% >= {threshold}%).")
-                print("👍 KHÔNG CẦN tạo thêm tài khoản mới. Bạn có thể tiếp tục sử dụng bình thường!")
-                print("=" * 65)
-                return
+                print(f"✅ QUOTA CÒN ĐỦ DÙNG ({rem}% >= {threshold}%).")
+                print("👍 KHÔNG CẦN tạo thêm tài khoản mới.")
+                return True
             else:
                 print(f"\n⚠️ CẢNH BÁO: Quota còn lại ({rem}%) ĐÃ DƯỚI NGƯỠNG {threshold}%!")
                 need_create = True
@@ -498,8 +484,41 @@ def main():
             if test_stat.get("ok"):
                 print(f"🎉 KEY MỚI HOẠT ĐỘNG HOÀN HẢO! Quota còn lại: {test_stat.get('remaining_pct')}%")
                 sync_key_everywhere(new_key)
+                return True
             else:
                 print(f"ℹ️ Key mới đã tạo, kết quả kiểm tra: {test_stat.get('error')}")
+                return False
+    return False
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Kiểm tra Quota và Tự động tạo acc nếu dưới ngưỡng")
+    parser.add_argument("--threshold", type=float, default=30.0, help="Ngưỡng %% quota còn lại (mặc định: 30%%)")
+    parser.add_argument("--force", action="store_true", help="Bắt buộc tạo tài khoản mới bất kể quota")
+    parser.add_argument("--watch", type=int, default=0, help="Chạy chế độ giám sát ngầm liên tục (số phút giữa mỗi lần check, 0 = chạy 1 lần)")
+    args = parser.parse_args()
+
+    threshold = args.threshold
+
+    if args.watch > 0:
+        print("=" * 65)
+        print(f"🛡️ [CHẾ ĐỘ GIÁM SÁT NGẦM WATCHDOG ĐANG BẬT]")
+        print(f"   ⏱️ Chu kỳ kiểm tra  : Mỗi {args.watch} phút")
+        print(f"   ⚠️ Ngưỡng kích hoạt : Quota còn dưới {threshold}%")
+        print("=" * 65)
+        while True:
+            try:
+                check_and_rotate_once(threshold=threshold, force=args.force)
+            except Exception as e:
+                print(f"⚠️ Lỗi trong vòng lặp watchdog: {e}")
+            time.sleep(args.watch * 60)
+    else:
+        print("=" * 65)
+        print("🔍 [KIỂM TRA HẠN MỨC QUOTA TOKEN HARBOR]")
+        print(f"   ⚠️ Ngưỡng kích hoạt tạo mới: Quota còn dưới {threshold}%")
+        print("=" * 65)
+        check_and_rotate_once(threshold=threshold, force=args.force)
 
 
 if __name__ == "__main__":
