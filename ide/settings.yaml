@@ -4,6 +4,6 @@ ui-onboarding:
   welcomeNoticeVersion: 2026-08-13.1
 agent-default-model:
   provider: free
-  model: deepseek-v4.1-flash:free
+  model: deepseek-v4-flash:free
 ui-theme:
   preference: system

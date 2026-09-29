@@ -95,6 +95,28 @@ if (fs.existsSync(skillsSrc)) {
   console.log(`✅ [SYNC] Da copy thu muc skills: deepseek-4-1 va hack`);
 }
 
+// 6. Tu dong cau hinh Model mac dinh Free vao profile/halyard.patch.yml
+const halyardPatchYml = path.join(targetHome, 'node_modules', '@tokenharbor', 'halyard', 'profile', 'halyard.patch.yml');
+if (fs.existsSync(halyardPatchYml)) {
+  let ymlContent = fs.readFileSync(halyardPatchYml, 'utf8');
+  let changed = false;
+  if (ymlContent.includes('provider: halyard\n    model: th-orchestra')) {
+    ymlContent = ymlContent.replace('provider: halyard\n    model: th-orchestra', 'provider: free\n    model: deepseek-v4-flash:free');
+    changed = true;
+  }
+  if (!ymlContent.includes('deepseek-v4.1-flash:free')) {
+    ymlContent = ymlContent.replace(
+      '- id: deepseek-v4-flash:free\n            input: [text]',
+      '- id: deepseek-v4-flash:free\n            input: [text]\n          - id: deepseek-v4.1-flash:free\n            input: [text]'
+    );
+    changed = true;
+  }
+  if (changed) {
+    fs.writeFileSync(halyardPatchYml, ymlContent, 'utf8');
+    console.log('✅ [PATCH] Da cau hinh profile/halyard.patch.yml: Mac dinh su dung deepseek-v4-flash:free');
+  }
+}
+
 console.log('=================================================================');
 console.log(`🎉 HOAN TAT! Da ap dung thanh cong ${applied}/${patchList.length} ban va vao Halyard.`);
 console.log('=================================================================');
